@@ -314,38 +314,35 @@ bool tree_sitter_slim_external_scanner_scan(
     if (valid_symbols[BLOCK_END] && found_end_of_line && indent_length < last_indent_length) {
       uint16_t *indent = array_back(&scanner->indents);
       uint16_t *first_indent = array_front(&scanner->indents);
+      scanner->dedents_to_output = 0;  // Reset dedents counter
 
       for(;;) {
-
         if (indent_length == *indent) {
           break;
-        } else if (indent_length > *indent) {
-          // No matching indent
+        } else if (indent_length > *indent || indent == first_indent) {
+          // No matching indent or reached first indent
           scanner->dedents_to_output = 0;
           return false;
         }
 
         scanner->dedents_to_output++;
-
-        if (indent == first_indent) {
-          break;
-        }
         indent--;
       }
-      // Should not dedent to less than first indentation level
-      assert((int)scanner->indents.size > scanner->dedents_to_output);
+
+      // Check if we have enough levels to dedent
+      if (scanner->dedents_to_output >= (int)scanner->indents.size) {
+        scanner->dedents_to_output = 0;
+        return false;
+      }
+
       scanner->indents.size -= scanner->dedents_to_output;
 
       if (scanner->dedents_to_output > 0) {
         lexer->result_symbol = BLOCK_END;
-        // Here we don't decrement dedents_to_output, because it
-        // should be 1 more to indicate line_separator after all
-        // dedents
         return true;
-      } else {
-        assert(false && "No dedents to output");
-        return false;
       }
+
+      return false;
     }
   }
 
